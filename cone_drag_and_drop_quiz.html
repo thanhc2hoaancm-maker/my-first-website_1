@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bài Tập Kéo Thả: Hình Nón</title>
+    <!-- Tải Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Định dạng chung cho font */
+        body {
+            font-family: 'Times New Roman', Times, serif; 
+            background-color: #f7f7f7;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        /* Định dạng cho các thành phần kéo */
+        .draggable-item {
+            cursor: grab;
+            user-select: none;
+            transition: all 0.2s;
+            /* LOẠI BỎ bóng đổ nhỏ để giao diện thẻ phẳng hơn */
+            /* box-shadow: 0 2px 4px rgba(0,0,0,0.1); */
+        }
+        .draggable-item:active {
+            cursor: grabbing;
+            opacity: 0.8;
+            transform: scale(1.05);
+        }
+        /* Định dạng cho vùng thả (ĐÃ CHỈNH SỬA CHIỀU CAO) */
+        .drop-zone {
+            /* TĂNG CHIỀU CAO để khớp với thẻ đáp án lớn hơn */
+            min-width: 140px; 
+            height: 48px; 
+            background-color: #e0f2f7; 
+            border: 2px dashed #0891b2; 
+            border-radius: 8px;
+            display: inline-flex;
+            justify-content: center;
+            align-items: center;
+            padding: 2px 5px; 
+            transition: background-color 0.3s;
+        }
+        .drop-zone.drag-over {
+            background-color: #99f6e4; 
+            border-color: #14b8a6;
+        }
+        /* Hiển thị phần tử đã được thả */
+        .drop-zone .draggable-item {
+            margin: 0;
+            cursor: default;
+        }
+        /* Định dạng cho modal (hộp thông báo) */
+        .modal {
+            transition: opacity 0.3s ease-in-out;
+        }
+        .modal-content {
+            box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+        }
+        /* Thêm style cho nút nhấn xuống (3D effect) */
+        .control-button:active {
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.06); /* Giảm shadow khi nhấn */
+            transform: translateY(2px); /* Dịch chuyển nút xuống nhẹ */
+        }
+    </style>
+</head>
+<body class="bg-gray-100">
+
+    <script>
+        // Khai báo các đối tượng toàn cục
+        let draggedElement = null;
+        const correctAnswers = {
+            'drop-zone-1': 'item-1', // Tam giác vuông
+            'drop-zone-2': 'item-2', // Đường sinh
+            'drop-zone-3': 'item-3'  // Chiều cao
+        };
+
+        // Hàm hiển thị hộp thông báo tùy chỉnh (thay thế cho alert)
+        function showMessage(title, message, isSuccess) {
+            const modal = document.getElementById('message-modal');
+            const titleEl = document.getElementById('modal-title');
+            const bodyEl = document.getElementById('modal-body');
+
+            titleEl.textContent = title;
+            bodyEl.textContent = message;
+
+            // Đổi màu sắc và biểu tượng dựa trên kết quả
+            if (isSuccess) {
+                titleEl.className = 'text-xl font-bold mb-2 text-green-700';
+            } else {
+                titleEl.className = 'text-xl font-bold mb-2 text-red-700';
+            }
+
+            modal.classList.remove('hidden');
+            modal.classList.add('opacity-100');
+        }
+
+        // Hàm đóng hộp thông báo
+        function closeModal() {
+            const modal = document.getElementById('message-modal');
+            modal.classList.add('hidden');
+            modal.classList.remove('opacity-100');
+        }
+
+        // 1. Bắt đầu kéo (Drag Start)
+        function dragStart(e) {
+            draggedElement = e.target;
+            // Lưu ID của phần tử đang được kéo vào dataTransfer
+            e.dataTransfer.setData('text/plain', e.target.id);
+            // Thêm hiệu ứng cho phần tử đang kéo
+            setTimeout(() => e.target.classList.add('opacity-50'), 0);
+        }
+
+        // 2. Kéo qua vùng thả (Drag Over)
+        function dragOver(e) {
+            e.preventDefault(); // Cho phép thả
+            e.currentTarget.classList.add('drag-over');
+        }
+
+        // 3. Rời khỏi vùng thả (Drag Leave)
+        function dragLeave(e) {
+            e.currentTarget.classList.remove('drag-over');
+        }
+
+        // 4. Thả vào vùng (Drop)
+        function drop(e) {
+            e.preventDefault();
+            e.currentTarget.classList.remove('drag-over');
+
+            const data = e.dataTransfer.getData('text/plain');
+            const draggable = document.getElementById(data);
+            const dropzone = e.currentTarget;
+
+            // Chỉ cho phép thả nếu vùng thả đang trống
+            if (dropzone.children.length === 0) {
+                // Đưa phần tử kéo vào vùng thả. Khi dùng appendChild, phần tử sẽ tự động 
+                // bị loại bỏ khỏi cha cũ của nó (dropzone cũ hoặc draggable-options).
+                dropzone.appendChild(draggable); 
+                draggable.classList.remove('opacity-50');
+                
+                // ĐÃ BỎ: Không cần gọi originalContainer.removeChild(draggable) vì 
+                // appendChild đã thực hiện việc di chuyển (loại bỏ khỏi cha cũ)
+            }
+        }
+
+        // 5. Kiểm tra kết quả
+        function checkAnswers() {
+            let correctCount = 0;
+            const dropZones = ['drop-zone-1', 'drop-zone-2', 'drop-zone-3'];
+
+            dropZones.forEach(zoneId => {
+                const dropzone = document.getElementById(zoneId);
+                const droppedItem = dropzone.querySelector('.draggable-item');
+
+                if (droppedItem) {
+                    const itemId = droppedItem.id;
+                    if (correctAnswers[zoneId] === itemId) {
+                        correctCount++;
+                        // Phản hồi trực quan
+                        dropzone.classList.remove('bg-red-200', 'bg-blue-100');
+                        dropzone.classList.add('bg-green-200', 'border-green-500');
+                    } else {
+                        // Phản hồi trực quan
+                        dropzone.classList.remove('bg-green-200', 'bg-blue-100');
+                        dropzone.classList.add('bg-red-200', 'border-red-500');
+                    }
+                }
+            });
+
+            const totalQuestions = dropZones.length;
+            const isSuccess = correctCount === totalQuestions;
+
+            if (isSuccess) {
+                showMessage(
+                    "CHÚC MỪNG!",
+                    `Bạn đã trả lời đúng ${correctCount}/${totalQuestions} câu. Chính xác!`,
+                    true
+                );
+            } else {
+                showMessage(
+                    "CHƯA CHÍNH XÁC",
+                    `Bạn đã trả lời đúng ${correctCount}/${totalQuestions} câu. Hãy xem lại và thử lại nhé!`,
+                    false
+                );
+            }
+        }
+
+        // 6. Thiết lập lại bài tập
+        function resetQuiz() {
+            closeModal();
+            const originalOptions = document.getElementById('draggable-options');
+            const items = [
+                { id: 'item-1', text: 'Tam giác vuông', style: 'bg-yellow-400 hover:bg-yellow-500' },
+                { id: 'item-2', text: 'Đường sinh', style: 'bg-indigo-400 hover:bg-indigo-500' },
+                { id: 'item-3', text: 'Chiều cao', style: 'bg-purple-400 hover:bg-purple-500' },
+                { id: 'item-4', text: 'Hình chữ nhật', style: 'bg-gray-400 hover:bg-gray-500' },
+                { id: 'item-5', text: 'Bán kính', style: 'bg-red-400 hover:bg-red-500' }
+            ];
+
+            // Xóa các drop zone và reset màu
+            ['drop-zone-1', 'drop-zone-2', 'drop-zone-3'].forEach(zoneId => {
+                const zone = document.getElementById(zoneId);
+                zone.innerHTML = '';
+                zone.classList.remove('bg-green-200', 'border-green-500', 'bg-red-200', 'border-red-500');
+                zone.classList.add('bg-blue-100', 'border-cyan-700');
+            });
+
+            // Xóa hết và tạo lại các draggable items
+            originalOptions.innerHTML = '';
+            items.forEach(item => {
+                const div = document.createElement('div');
+                div.id = item.id;
+                div.draggable = true;
+                div.textContent = item.text;
+                // ĐÃ THÊM: flex justify-center items-center để căn giữa chữ hoàn toàn
+                div.className = `draggable-item rounded-2xl py-2 px-3 text-base text-white font-semibold transition-all flex justify-center items-center ${item.style}`;
+                div.addEventListener('dragstart', dragStart);
+                originalOptions.appendChild(div);
+            });
+        }
+
+        // Gán sự kiện khi trang tải xong
+        document.addEventListener('DOMContentLoaded', () => {
+            // Gán sự kiện cho các drop zone
+            document.querySelectorAll('.drop-zone').forEach(zone => {
+                zone.addEventListener('dragover', dragOver);
+                zone.addEventListener('dragleave', dragLeave);
+                zone.addEventListener('drop', drop);
+            });
+
+            // Khởi tạo các draggable items
+            resetQuiz();
+
+            // Gán sự kiện cho nút kiểm tra và reset
+            document.getElementById('check-button').addEventListener('click', checkAnswers);
+            document.getElementById('reset-button').addEventListener('click', resetQuiz);
+
+            // Gán sự kiện cho nút đóng modal
+            document.getElementById('close-modal-button').addEventListener('click', closeModal);
+        });
+    </script>
+
+    <div class="w-full max-w-4xl bg-white p-8 rounded-xl shadow-2xl">
+        <h1 class="text-4xl font-extrabold text-cyan-700 mb-6 text-center border-b-4 border-cyan-400 pb-2">
+            Bài Tập Kéo Thả: Khái Niệm Hình Nón 📐
+        </h1>
+        <p class="text-lg text-gray-700 mb-8 text-center">
+            Hãy kéo và thả các đáp án dưới đây vào ô trống thích hợp để hoàn thành các câu sau.
+        </p>
+
+        <!-- KHU VỰC CÂU HỎI -->
+        <div class="space-y-6 mb-10 text-xl font-medium text-gray-800">
+
+            <div class="flex flex-wrap items-center gap-2">
+                <span class="font-bold text-cyan-600">Câu 1:</span>
+                <span>Khi quay hình</span>
+                <div id="drop-zone-1" class="drop-zone flex-shrink-0 bg-blue-100 border-cyan-700"></div>
+                <span>quanh một cạnh góc vuông, ta được hình nón.</span>
+            </div>
+
+            <div class="flex flex-wrap items-center gap-2">
+                <span class="font-bold text-cyan-600">Câu 2:</span>
+                <span>Cạnh huyền khi quay tạo thành</span>
+                <div id="drop-zone-2" class="drop-zone flex-shrink-0 bg-blue-100 border-cyan-700"></div>
+                <span>của hình nón.</span>
+            </div>
+
+            <div class="flex flex-wrap items-center gap-2">
+                <span class="font-bold text-cyan-600">Câu 3:</span>
+                <span>Cạnh góc vuông còn lại khi quay tạo thành</span>
+                <div id="drop-zone-3" class="drop-zone flex-shrink-0 bg-blue-100 border-cyan-700"></div>
+                <span>của hình nón.</span>
+            </div>
+
+        </div>
+
+        <!-- KHU VỰC ĐÁP ÁN (DRAGGABLE ITEMS) -->
+        <h2 class="text-2xl font-semibold text-gray-700 mb-4 border-t pt-4">Đáp án (Kéo và Thả)</h2>
+        <div id="draggable-options" class="flex flex-wrap gap-4 p-4 border border-gray-300 rounded-lg bg-gray-50 min-h-[100px]">
+            <!-- Các phần tử kéo thả sẽ được thêm bằng JavaScript -->
+        </div>
+
+        <!-- NÚT CHỨC NĂNG (ĐÃ CHỈNH SỬA PHONG CÁCH) -->
+        <div class="flex justify-center space-x-6 mt-10">
+            <!-- Nút KIỂM TRA -->
+            <button id="check-button" 
+                    class="control-button px-10 py-4 bg-green-600 text-white text-xl font-extrabold rounded-full 
+                           hover:bg-green-700 transition-all transform hover:scale-105 shadow-2xl">
+                KIỂM TRA
+            </button>
+            <!-- Nút LÀM LẠI -->
+            <button id="reset-button" 
+                    class="control-button px-10 py-4 bg-red-600 text-white text-xl font-extrabold rounded-full 
+                           hover:bg-red-700 transition-all transform hover:scale-105 shadow-2xl">
+                LÀM LẠI
+            </button>
+        </div>
+    </div>
+
+    <!-- CUSTOM MODAL (HỘP THÔNG BÁO) -->
+    <div id="message-modal" class="modal fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden opacity-0">
+        <div class="modal-content bg-white p-8 rounded-xl max-w-sm w-full text-center">
+            <h3 id="modal-title" class="text-xl font-bold mb-4"></h3>
+            <p id="modal-body" class="text-gray-700 mb-6"></p>
+            <button id="close-modal-button" class="px-6 py-2 bg-cyan-600 text-white font-semibold rounded-full hover:bg-cyan-700 transition-colors">
+                Đóng
+            </button>
+        </div>
+    </div>
+
+</body>
+</html>
